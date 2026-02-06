@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Misc - Simon Alford</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav>
+        <a href="index.html">Home</a>
+        <a href="research.html">Research</a>
+        <a href="papers.html">Papers</a>
+        <a href="misc.html" class="active">Misc</a>
+    </nav>
+
+    <main>
+        <p>In my free time, I enjoy ultimate frisbee, surfing, philosophy book club (reading list here; email if interested in joining), cacti, textiles, and music.</p>
+
+        <p>I have a Substack, <a href="https://simonalford.substack.com/">Simon's Tips</a>, where I share various tips.</p>
+    </main>
+
+</body>
+</html>

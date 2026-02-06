@@ -1,0 +1,61 @@
+body {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #000;
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+nav {
+    margin-bottom: 30px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: normal;
+}
+
+.headshot {
+    width: 252px;
+    height: auto;
+}
+
+nav a {
+    margin-right: 15px;
+    color: #0000EE;
+    text-decoration: none;
+}
+
+nav a:hover,
+nav a.active {
+    text-decoration: underline;
+}
+
+main p {
+    margin-bottom: 1em;
+}
+
+a {
+    color: #0000EE;
+    text-decoration: underline;
+}
+
+footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid #ccc;
+}
+
+footer a {
+    margin-right: 15px;
+}

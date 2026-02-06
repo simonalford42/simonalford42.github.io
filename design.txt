@@ -1,0 +1,68 @@
+Website design thoughts:
+- choose overall layout, font, and sections
+- figure out whether to have a really aesthetic front page, or maybe that detracts from something. yeah, it probably does.
+- should probably keep it on the minimal side to start. can always make it fancier later. just get something working that works.
+
+Overall layout, tabs:
+- home page
+- research
+- papers
+- misc
+
+Tabs go across the top.
+
+Font:
+- should be a serif font, small size (similar to https://patrickcollison.com/about's site). not a weird exotic font, just a normal serif font. i guess start with times new roman. 
+
+Overall site design should otherwise be like: https://jxmo.io/misc
+
+What should go in the sections:
+
+Home page: 
+- I am a PhD student in computer science at Cornell University, advised by Kevin Ellis. I received my bachelor's and master's degrees from MIT. 
+- I am currently interested in algorithms for {symbolic regression}{https://en.wikipedia.org/wiki/Symbolic_regression}.
+- More broadly, I am interested in program induction, neurosymbolic AI, and abstraction and reasoning.
+
+Along the bottom, underlined text links: email: alford@cs.cornell.edu, twitter{https://x.com/simon_alford0}, github{https://github.com/simonalford42}, google scholar {https://scholar.google.com/citations?user=dUQcPJwAAAAJ&hl=en}
+
+Research:
+
+Symbolic Regression
+- Planets paper
+- Evolving meta-algorithms for SR
+
+ARC
+
+Master's thesis: bidirectional reasoning for ARC.
+Combining induction and transduction
+Dreaming with ARC
+
+Sparse neural networks:
+- Pruning
+- Other stuff
+
+Options-learning:
+- Desiderata for abstraction
+- Blog post about learning options for RL
+
+Misc:
+- Boids
+- webarena
+- inverse scaling prize
+- omnicode
+
+papers & preprints
+- Omnicode (preprint)
+- InceptionSR (workshop)
+- Combining induction and transduction
+- Desiderata for abstraction (workshop)
+- Complex networks
+- Abstraction and reasoning (master's thesis)
+- Dreaming with ARC (workshop)
+- graphchallenge.org sprasae DNN performance
+- training behavior of sparse NN topologies
+
+Misc tab of website:
+
+- In my free time, I enjoy ultimate frisbee, surfing, philosophy book club (reading list here; email if interested in joining), cacti, textiles, and music. 
+- I have a Substack, Simon's Tips, https://simonalford.substack.com/, where I share various tips. 
