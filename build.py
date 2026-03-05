@@ -14,6 +14,7 @@ NAV_ITEMS = [
     ("index.html", "Home"),
     ("papers.html", "Papers"),
     ("misc.html", "Misc."),
+    ("https://simonalford.substack.com/", "Blog"),
 ]
 
 def build_nav(active_slug):
