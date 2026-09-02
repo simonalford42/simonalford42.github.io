@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tiling Game</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: monospace; background: #1a1a2e; color: #eee; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+h1 { margin-bottom: 16px; font-size: 1.4em; color: #a8d8ea; }
+
+#app { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+
+.panel { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 16px; }
+.panel h2 { font-size: 0.9em; color: #a8d8ea; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+
+/* Shape editor */
+#shape-grid { display: grid; gap: 2px; margin-bottom: 10px; }
+.shape-cell { width: 32px; height: 32px; border: 1px solid #333; cursor: pointer; border-radius: 3px; background: #0d1b2a; transition: background 0.1s; }
+.shape-cell.active { background: #e94560; }
+.shape-cell:hover { border-color: #a8d8ea; }
+
+/* Controls */
+.controls { display: flex; flex-direction: column; gap: 8px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+label { font-size: 0.8em; color: #aaa; }
+input[type=range] { width: 80px; accent-color: #e94560; }
+input[type=number] { width: 50px; background: #0d1b2a; border: 1px solid #0f3460; color: #eee; padding: 2px 4px; border-radius: 3px; font-family: monospace; }
+button { background: #0f3460; border: 1px solid #a8d8ea; color: #a8d8ea; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.85em; transition: background 0.15s; }
+button:hover { background: #1a5276; }
+button.active { background: #e94560; border-color: #e94560; color: #fff; }
+button.danger { border-color: #e94560; color: #e94560; }
+button.danger:hover { background: #e94560; color: #fff; }
+
+/* Play grid */
+#play-canvas { cursor: pointer; display: block; }
+#play-canvas:focus { outline: none; }
+
+#stats { font-size: 0.8em; color: #aaa; margin-top: 8px; }
+#msg { font-size: 0.85em; color: #e94560; min-height: 1.2em; margin-top: 6px; }
+
+.sep { border: none; border-top: 1px solid #0f3460; margin: 8px 0; }
+
+/* Shape preview */
+#shape-preview { display: inline-block; margin-left: 8px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<h1>Tiling Game</h1>
+<div id="app">
+  <div class="panel" id="left-panel">
+    <h2>Shape Editor</h2>
+    <div class="row" style="margin-bottom:8px">
+      <label>Grid size:</label>
+      <input type="number" id="grid-size" value="3" min="1" max="6">
+      <button onclick="applyGridSize()">Apply</button>
+    </div>
+    <div id="shape-grid"></div>
+    <div class="row">
+      <button onclick="clearShape()">Clear</button>
+      <button onclick="presetUtah()">Utah</button>
+      <button onclick="presetL()">L-shape</button>
+      <button onclick="presetT()">T-shape</button>
+      <button onclick="presetPlus()">Plus</button>
+    </div>
+    <hr class="sep">
+    <h2>Options</h2>
+    <div class="controls">
+      <div class="row">
+        <label>Allow rotation:</label>
+        <input type="checkbox" id="allow-rotation" checked>
+      </div>
+      <div class="row">
+        <label>Allow flip:</label>
+        <input type="checkbox" id="allow-flip" checked>
+      </div>
+      <div class="row">
+        <label>Play grid:</label>
+        <input type="number" id="play-size" value="20" min="5" max="60">
+        <label>cells</label>
+      </div>
+    </div>
+    <hr class="sep">
+    <div class="row">
+      <button onclick="startGame()">New Game</button>
+      <button onclick="autoTile()" id="auto-btn">Auto-tile</button>
+      <button onclick="stopAuto()" class="danger" id="stop-btn" style="display:none">Stop</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Play Area <span id="stats"></span></h2>
+    <canvas id="play-canvas" tabindex="0"></canvas>
+  </div>
+</div>
+
+<script>
+// ---- State ----
+let shapeGridSize = 3;
+let shapeCells = new Set(); // "r,c" strings
+
+let playGridSize = 20;
+let cellSize = 28;
+
+let placed = new Map();
+let placedCells = new Set();    // "r,c" of individual cells
+let placedCellMap = new Map();  // "r,c" -> tileKey, for n-coloring
+
+// floating tile
+let currentOrientIdx = 0;
+let hoverR = -1, hoverC = -1;   // grid cell under cursor (-1 = off canvas)
+let hoverCells = null;           // positioned cells of floating tile
+let hoverValid = false;
+
+let autoInterval = null;
+let gameStarted = false;
+
+// ---- Shape editor ----
+function buildShapeGrid() {
+  const g = document.getElementById('shape-grid');
+  g.style.gridTemplateColumns = `repeat(${shapeGridSize}, 32px)`;
+  g.innerHTML = '';
+  for (let r = 0; r < shapeGridSize; r++) {
+    for (let c = 0; c < shapeGridSize; c++) {
+      const d = document.createElement('div');
+      d.className = 'shape-cell' + (shapeCells.has(`${r},${c}`) ? ' active' : '');
+      d.addEventListener('click', () => toggleShapeCell(r, c));
+      g.appendChild(d);
+    }
+  }
+}
+
+function toggleShapeCell(r, c) {
+  const k = `${r},${c}`;
+  if (shapeCells.has(k)) shapeCells.delete(k);
+  else shapeCells.add(k);
+  buildShapeGrid();
+}
+
+function clearShape() { shapeCells.clear(); buildShapeGrid(); }
+
+function applyGridSize() {
+  shapeGridSize = Math.max(1, Math.min(6, parseInt(document.getElementById('grid-size').value) || 3));
+  // remove out-of-range cells
+  for (const k of [...shapeCells]) {
+    const [r, c] = k.split(',').map(Number);
+    if (r >= shapeGridSize || c >= shapeGridSize) shapeCells.delete(k);
+  }
+  buildShapeGrid();
+}
+
+function presetUtah() {
+  shapeCells = new Set(['0,0','0,1','1,0','1,1','2,0']);
+  shapeGridSize = 3;
+  document.getElementById('grid-size').value = 3;
+  buildShapeGrid();
+}
+function presetL() {
+  shapeCells = new Set(['0,0','1,0','2,0','2,1']);
+  shapeGridSize = 3;
+  document.getElementById('grid-size').value = 3;
+  buildShapeGrid();
+}
+function presetT() {
+  shapeCells = new Set(['0,0','0,1','0,2','1,1']);
+  shapeGridSize = 3;
+  document.getElementById('grid-size').value = 3;
+  buildShapeGrid();
+}
+function presetPlus() {
+  shapeCells = new Set(['0,1','1,0','1,1','1,2','2,1']);
+  shapeGridSize = 3;
+  document.getElementById('grid-size').value = 3;
+  buildShapeGrid();
+}
+
+// ---- Shape transforms ----
+function getShapeCells() {
+  return [...shapeCells].map(k => { const [r,c]=k.split(',').map(Number); return {r,c}; });
+}
+
+// Normalize cells so min r=0, min c=0
+function normalize(cells) {
+  const minR = Math.min(...cells.map(c=>c.r));
+  const minC = Math.min(...cells.map(c=>c.c));
+  return cells.map(c=>({r:c.r-minR, c:c.c-minC}));
+}
+
+function rotateCW(cells) {
+  // (r,c) -> (c, -r) then normalize
+  return normalize(cells.map(({r,c})=>({r:c, c:-r})));
+}
+function flipH(cells) {
+  return normalize(cells.map(({r,c})=>({r, c:-c})));
+}
+
+function cellsKey(cells) {
+  return cells.map(({r,c})=>`${r},${c}`).sort().join('|');
+}
+
+// Get all unique orientations of shape
+function getOrientations(cells) {
+  const seen = new Set();
+  const result = [];
+  const allowRot = document.getElementById('allow-rotation').checked;
+  const allowFlip = document.getElementById('allow-flip').checked;
+
+  let variants = [normalize(cells)];
+  if (allowRot) {
+    let cur = normalize(cells);
+    for (let i = 0; i < 3; i++) {
+      cur = rotateCW(cur);
+      variants.push(cur);
+    }
+  }
+  if (allowFlip) {
+    const flipped = variants.map(v => flipH(v));
+    variants = variants.concat(flipped);
+  }
+
+  for (const v of variants) {
+    const n = normalize(v);
+    const k = cellsKey(n);
+    if (!seen.has(k)) {
+      seen.add(k);
+      result.push(n);
+    }
+  }
+  return result;
+}
+
+// ---- Game logic ----
+function pk(r, c) { return `${r},${c}`; }
+
+function startGame() {
+  stopAuto();
+  playGridSize = Math.max(5, Math.min(60, parseInt(document.getElementById('play-size').value) || 20));
+  placed.clear();
+  placedCells.clear();
+  placedCellMap.clear();
+  currentOrientIdx = 0;
+  hoverR = -1; hoverC = -1;
+  hoverCells = null; hoverValid = false;
+  gameStarted = true;
+
+  const canvas = document.getElementById('play-canvas');
+  cellSize = Math.max(10, Math.min(32, Math.floor(500 / playGridSize)));
+  canvas.width = playGridSize * cellSize;
+  canvas.height = playGridSize * cellSize;
+
+  renderPlay();
+  setMsg('Hover over the grid to place — R to rotate');
+  updateStats();
+}
+
+// Get all valid placements across all orientations (used by autotile)
+function getValidPlacements() {
+  const shape = getShapeCells();
+  if (shape.length === 0) return [];
+  const orientations = getOrientations(shape);
+  const moves = [];
+  const mid = Math.floor(playGridSize / 2);
+
+  if (placedCells.size === 0) {
+    for (const orient of orientations) {
+      const maxR = Math.max(...orient.map(c=>c.r));
+      const maxC = Math.max(...orient.map(c=>c.c));
+      const ar = mid - Math.floor(maxR/2);
+      const ac = mid - Math.floor(maxC/2);
+      const cells = orient.map(({r,c})=>({r:r+ar, c:c+ac}));
+      if (isValidPlacement(cells)) moves.push({cells});
+    }
+    return moves;
+  }
+
+  const directions = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+  const candidates = new Set();
+  for (const k of placedCells) {
+    const [r,c] = k.split(',').map(Number);
+    for (const {dr,dc} of directions) {
+      const nr = r+dr, nc = c+dc;
+      if (!placedCells.has(pk(nr,nc))) candidates.add(pk(nr,nc));
+    }
+  }
+
+  for (const orient of orientations) {
+    for (const cand of candidates) {
+      const [cr,cc] = cand.split(',').map(Number);
+      for (const anchor of orient) {
+        const ar = cr - anchor.r, ac = cc - anchor.c;
+        const cells = orient.map(({r,c})=>({r:r+ar, c:c+ac}));
+        if (isValidPlacement(cells) && touchesExisting(cells)) {
+          const key = cellsKey(cells);
+          if (!moves.some(m=>cellsKey(m.cells)===key)) moves.push({cells});
+        }
+      }
+    }
+  }
+  return moves;
+}
+
+// Position the current orientation centered on (hoverR, hoverC)
+function getFloatingCells() {
+  const shape = getShapeCells();
+  if (shape.length === 0) return null;
+  const orientations = getOrientations(shape);
+  if (orientations.length === 0) return null;
+  const orient = orientations[currentOrientIdx % orientations.length];
+  const maxR = Math.max(...orient.map(c=>c.r));
+  const maxC = Math.max(...orient.map(c=>c.c));
+  const offR = hoverR - Math.floor(maxR / 2);
+  const offC = hoverC - Math.floor(maxC / 2);
+  return orient.map(({r,c}) => ({r: r+offR, c: c+offC}));
+}
+
+function checkFloatingValidity(cells) {
+  if (!cells) return false;
+  if (!isValidPlacement(cells)) return false;
+  if (placedCells.size > 0 && !touchesExisting(cells)) return false;
+  return true;
+}
+
+function isValidPlacement(cells) {
+  for (const {r,c} of cells) {
+    if (r < 0 || r >= playGridSize || c < 0 || c >= playGridSize) return false;
+    if (placedCells.has(pk(r,c))) return false;
+  }
+  return !wouldCreateHole(cells);
+}
+
+// Bounds + overlap only — no hole check. Used in autotile hot path.
+function isValidPlacementFast(cells) {
+  for (const {r,c} of cells) {
+    if (r < 0 || r >= playGridSize || c < 0 || c >= playGridSize) return false;
+    if (placedCells.has(pk(r,c))) return false;
+  }
+  return true;
+}
+
+function touchesExisting(cells) {
+  const directions = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+  const cellSet = new Set(cells.map(({r,c})=>pk(r,c)));
+  for (const {r,c} of cells) {
+    for (const {dr,dc} of directions) {
+      const nr = r+dr, nc = c+dc;
+      if (placedCells.has(pk(nr,nc))) return true;
+    }
+  }
+  return false;
+}
+
+// Check if placing these cells would create an enclosed hole (exact, used for manual play)
+function wouldCreateHole(newCells) {
+  const newCellSet = new Set(newCells.map(({r,c})=>pk(r,c)));
+  const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+  const toCheck = new Set();
+  for (const {r,c} of newCells) {
+    for (const {dr,dc} of dirs) {
+      const nr=r+dr, nc=c+dc;
+      const nk = pk(nr,nc);
+      if (nr>=0&&nr<playGridSize&&nc>=0&&nc<playGridSize && !placedCells.has(nk) && !newCellSet.has(nk))
+        toCheck.add(nk);
+    }
+  }
+  for (const start of toCheck) {
+    const region = [start];
+    const regionSet = new Set([start]);
+    let touchesBorder = false;
+    let qi = 0;
+    while (qi < region.length) {
+      const cur = region[qi++];
+      const [r,c] = cur.split(',').map(Number);
+      if (r===0||r===playGridSize-1||c===0||c===playGridSize-1) touchesBorder = true;
+      for (const {dr,dc} of dirs) {
+        const nr=r+dr, nc=c+dc;
+        if (nr<0||nr>=playGridSize||nc<0||nc>=playGridSize) { touchesBorder=true; continue; }
+        const nk = pk(nr,nc);
+        if (!placedCells.has(nk) && !newCellSet.has(nk) && !regionSet.has(nk)) {
+          regionSet.add(nk); region.push(nk);
+        }
+      }
+    }
+    for (const k of region) toCheck.delete(k);
+    if (!touchesBorder) return true;
+  }
+  return false;
+}
+
+// Precompute all empty cells reachable from the grid border.
+// O(grid²) — called once per autotile step, not per candidate.
+function computeBorderReach() {
+  const reach = new Set();
+  const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+  const queue = [];
+  let qi = 0;
+  for (let r = 0; r < playGridSize; r++) {
+    for (let c = 0; c < playGridSize; c++) {
+      if (r===0||r===playGridSize-1||c===0||c===playGridSize-1) {
+        const k = pk(r,c);
+        if (!placedCells.has(k) && !reach.has(k)) { reach.add(k); queue.push(k); }
+      }
+    }
+  }
+  while (qi < queue.length) {
+    const cur = queue[qi++];
+    const [r,c] = cur.split(',').map(Number);
+    for (const {dr,dc} of dirs) {
+      const nr=r+dr, nc=c+dc;
+      if (nr<0||nr>=playGridSize||nc<0||nc>=playGridSize) continue;
+      const nk = pk(nr,nc);
+      if (!placedCells.has(nk) && !reach.has(nk)) { reach.add(nk); queue.push(nk); }
+    }
+  }
+  return reach;
+}
+
+// Fast hole check for autotile. Uses precomputed borderReach as a shortcut:
+// if during BFS we encounter any cell already in borderReach (and not blocked
+// by newCells), we immediately know this region connects to the border.
+// Typically exits in 1–3 BFS steps instead of traversing the whole grid.
+function wouldCreateHoleFast(newCells, borderReach) {
+  const newCellSet = new Set(newCells.map(({r,c})=>pk(r,c)));
+  const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+
+  const toCheck = new Set();
+  for (const {r,c} of newCells) {
+    for (const {dr,dc} of dirs) {
+      const nr=r+dr, nc=c+dc;
+      const nk = pk(nr,nc);
+      if (nr>=0&&nr<playGridSize&&nc>=0&&nc<playGridSize &&
+          !placedCells.has(nk) && !newCellSet.has(nk) && borderReach.has(nk))
+        toCheck.add(nk);
+    }
+  }
+  if (toCheck.size === 0) return false;
+
+  const globalVisited = new Set();
+  for (const start of toCheck) {
+    if (globalVisited.has(start)) continue;
+    const region = [start];
+    const regionSet = new Set([start]);
+    let reachable = false;
+    let qi = 0;
+    outer: while (qi < region.length) {
+      const cur = region[qi++];
+      const [r,c] = cur.split(',').map(Number);
+      if (r===0||r===playGridSize-1||c===0||c===playGridSize-1) { reachable=true; break; }
+      for (const {dr,dc} of dirs) {
+        const nr=r+dr, nc=c+dc;
+        if (nr<0||nr>=playGridSize||nc<0||nc>=playGridSize) { reachable=true; break outer; }
+        const nk = pk(nr,nc);
+        if (placedCells.has(nk) || newCellSet.has(nk) || regionSet.has(nk)) continue;
+        // Shortcut: already known to reach border, and not blocked by newCells
+        if (borderReach.has(nk)) { reachable=true; break outer; }
+        regionSet.add(nk); region.push(nk);
+      }
+    }
+    for (const k of regionSet) globalVisited.add(k);
+    if (!reachable) return true; // hole!
+  }
+  return false;
+}
+
+// ---- N-coloring ----
+// Small palette; greedy assignment ensures neighbors differ
+const PALETTE = ['#e94560','#05c46b','#0fbcf9','#ffd32a','#c44569','#63cdda'];
+
+function assignTileColor(tileKey, cells) {
+  const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+  const neighborColors = new Set();
+  for (const {r,c} of cells) {
+    for (const {dr,dc} of dirs) {
+      const neighborKey = placedCellMap.get(pk(r+dr, c+dc));
+      if (neighborKey && neighborKey !== tileKey) {
+        const col = placed.get(neighborKey)?.colorIdx;
+        if (col !== undefined) neighborColors.add(col);
+      }
+    }
+  }
+  for (let i = 0; i < PALETTE.length; i++) {
+    if (!neighborColors.has(i)) return i;
+  }
+  return 0;
+}
+
+// ---- Rendering ----
+
+function renderPlay() {
+  const canvas = document.getElementById('play-canvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Grid background
+  ctx.fillStyle = '#0d1b2a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid lines
+  ctx.strokeStyle = '#1a2a3a';
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r <= playGridSize; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r*cellSize); ctx.lineTo(canvas.width, r*cellSize); ctx.stroke();
+  }
+  for (let c = 0; c <= playGridSize; c++) {
+    ctx.beginPath(); ctx.moveTo(c*cellSize, 0); ctx.lineTo(c*cellSize, canvas.height); ctx.stroke();
+  }
+
+  // Placed tiles
+  for (const [key, tile] of placed) {
+    const color = PALETTE[tile.colorIdx];
+    for (const {r,c} of tile.cells) drawCell(ctx, r, c, color, 1.0);
+    drawTileBorder(ctx, tile.cells, color);
+  }
+
+  // Floating tile
+  if (gameStarted && hoverCells) {
+    if (hoverValid) {
+      for (const {r,c} of hoverCells) drawCell(ctx, r, c, '#ffffff', 0.45);
+      drawTileBorder(ctx, hoverCells, '#ffffff');
+    } else {
+      // Grey out — only draw cells that are in bounds
+      const inBounds = hoverCells.filter(({r,c}) => r>=0&&r<playGridSize&&c>=0&&c<playGridSize);
+      for (const {r,c} of inBounds) drawCell(ctx, r, c, '#555', 0.45);
+      if (inBounds.length > 0) drawTileBorder(ctx, inBounds, '#666');
+    }
+  }
+}
+
+const borderW = () => Math.max(0.5, Math.min(2, cellSize / 10));
+const inset = () => Math.max(0.5, Math.min(1.5, cellSize / 18));
+
+function drawCell(ctx, r, c, color, alpha) {
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  const i = inset();
+  ctx.fillRect(c*cellSize+i, r*cellSize+i, cellSize-2*i, cellSize-2*i);
+  ctx.globalAlpha = 1;
+}
+
+function drawTileBorder(ctx, cells, color) {
+  const cellSet = new Set(cells.map(({r,c})=>pk(r,c)));
+  ctx.strokeStyle = color;
+  ctx.lineWidth = borderW();
+  const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+  for (const {r,c} of cells) {
+    for (const {dr,dc} of dirs) {
+      if (!cellSet.has(pk(r+dr,c+dc))) {
+        // draw this edge
+        ctx.beginPath();
+        if (dr===-1) { ctx.moveTo(c*cellSize, r*cellSize); ctx.lineTo((c+1)*cellSize, r*cellSize); }
+        if (dr===1)  { ctx.moveTo(c*cellSize, (r+1)*cellSize); ctx.lineTo((c+1)*cellSize, (r+1)*cellSize); }
+        if (dc===-1) { ctx.moveTo(c*cellSize, r*cellSize); ctx.lineTo(c*cellSize, (r+1)*cellSize); }
+        if (dc===1)  { ctx.moveTo((c+1)*cellSize, r*cellSize); ctx.lineTo((c+1)*cellSize, (r+1)*cellSize); }
+        ctx.stroke();
+      }
+    }
+  }
+}
+
+function updateStats() {
+  const total = placedCells.size;
+  const tiles = placed.size;
+  document.getElementById('stats').textContent = `— ${tiles} tiles, ${total} cells`;
+}
+
+function setMsg(m) { document.getElementById('msg').textContent = m; }
+
+// ---- Interaction ----
+function refreshHover() {
+  if (hoverR < 0) { hoverCells = null; hoverValid = false; return; }
+  hoverCells = getFloatingCells();
+  hoverValid = checkFloatingValidity(hoverCells);
+  const n = getOrientations(getShapeCells()).length;
+  if (n > 1) {
+    setMsg(`R to rotate — orientation ${(currentOrientIdx % n) + 1}/${n}`);
+  } else {
+    setMsg('');
+  }
+}
+
+document.getElementById('play-canvas').addEventListener('mousemove', e => {
+  if (!gameStarted) return;
+  const rect = e.target.getBoundingClientRect();
+  const newC = Math.floor((e.clientX - rect.left) / cellSize);
+  const newR = Math.floor((e.clientY - rect.top) / cellSize);
+  if (newR === hoverR && newC === hoverC) return;
+  hoverR = newR; hoverC = newC;
+  refreshHover();
+  renderPlay();
+});
+
+document.getElementById('play-canvas').addEventListener('mouseleave', () => {
+  hoverR = -1; hoverC = -1;
+  hoverCells = null; hoverValid = false;
+  setMsg('');
+  renderPlay();
+});
+
+document.addEventListener('keydown', e => {
+  if (!gameStarted) return;
+  if (e.key === 'r' || e.key === 'R') {
+    currentOrientIdx++;
+    refreshHover();
+    renderPlay();
+  }
+});
+
+document.getElementById('play-canvas').addEventListener('click', e => {
+  if (!gameStarted) return;
+  if (hoverValid && hoverCells) placeTile(hoverCells);
+});
+
+function placeTile(cells) {
+  const tileKey = `tile_${placed.size}`;
+  const colorIdx = assignTileColor(tileKey, cells);
+  placed.set(tileKey, {cells, colorIdx});
+  for (const {r,c} of cells) {
+    placedCells.add(pk(r,c));
+    placedCellMap.set(pk(r,c), tileKey);
+  }
+  refreshHover();
+  renderPlay();
+  updateStats();
+  if (!hasAnyValidMove()) setMsg('No more moves! Tiling complete.');
+}
+
+// ---- Auto tile ----
+function blobCentroid() {
+  let sumR = 0, sumC = 0, n = 0;
+  for (const k of placedCells) {
+    const [r,c] = k.split(',').map(Number);
+    sumR += r; sumC += c; n++;
+  }
+  return n > 0 ? {r: sumR/n, c: sumC/n} : {r: playGridSize/2, c: playGridSize/2};
+}
+
+// Find the best placement for autotile.
+// Key optimizations vs naive approach:
+// 1. computeBorderReach() is O(grid²) but called only ONCE per step
+// 2. wouldCreateHoleFast() exits in O(1–3 steps) via the borderReach shortcut
+// 3. isValidPlacementFast() skips hole check (handled separately)
+function findBestAutoPlacement() {
+  const shape = getShapeCells();
+  if (!shape.length) return null;
+  const orientations = getOrientations(shape);
+
+  if (placedCells.size === 0) {
+    const mid = Math.floor(playGridSize / 2);
+    for (const orient of orientations) {
+      const maxR = Math.max(...orient.map(c=>c.r));
+      const maxC = Math.max(...orient.map(c=>c.c));
+      const cells = orient.map(({r,c})=>({r:r+mid-Math.floor(maxR/2), c:c+mid-Math.floor(maxC/2)}));
+      if (isValidPlacementFast(cells)) return cells;
+    }
+    return null;
+  }
+
+  const cen = blobCentroid();
+  const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+
+  // Gather border candidates
+  const seen = new Set();
+  const candidates = [];
+  for (const k of placedCells) {
+    const [r,c] = k.split(',').map(Number);
+    for (const {dr,dc} of dirs) {
+      const nr=r+dr, nc=c+dc;
+      const nk = pk(nr,nc);
+      if (!placedCells.has(nk) && !seen.has(nk)) {
+        seen.add(nk);
+        candidates.push({r:nr, c:nc});
+      }
+    }
+  }
+
+  // ONE expensive BFS for the whole step
+  const borderReach = computeBorderReach();
+
+  const tried = new Set();
+  let bestCells = null, bestDist = Infinity;
+  for (const orient of orientations) {
+    for (const cand of candidates) {
+      for (const anchor of orient) {
+        const ar = cand.r - anchor.r, ac = cand.c - anchor.c;
+        const cells = orient.map(({r,c})=>({r:r+ar, c:c+ac}));
+        const key = cellsKey(cells);
+        if (tried.has(key)) continue;
+        tried.add(key);
+        if (isValidPlacementFast(cells) && touchesExisting(cells) && !wouldCreateHoleFast(cells, borderReach)) {
+          const mr = cells.reduce((s,c)=>s+c.r,0) / cells.length;
+          const mc = cells.reduce((s,c)=>s+c.c,0) / cells.length;
+          const d = (mr-cen.r)**2 + (mc-cen.c)**2 + Math.random()*0.9;
+          if (d < bestDist) { bestDist = d; bestCells = cells; }
+        }
+      }
+    }
+  }
+  return bestCells;
+}
+
+function hasAnyValidMove() {
+  const shape = getShapeCells();
+  if (!shape.length) return false;
+  const orientations = getOrientations(shape);
+  if (placedCells.size === 0) return true;
+  const dirs = [{dr:-1,dc:0},{dr:1,dc:0},{dr:0,dc:-1},{dr:0,dc:1}];
+  const seen = new Set();
+  const candidates = [];
+  for (const k of placedCells) {
+    const [r,c] = k.split(',').map(Number);
+    for (const {dr,dc} of dirs) {
+      const nk = pk(r+dr, c+dc);
+      if (!placedCells.has(nk) && !seen.has(nk)) { seen.add(nk); candidates.push(nk); }
+    }
+  }
+  const borderReach = computeBorderReach();
+  const tried = new Set();
+  for (const orient of orientations) {
+    for (const ck of candidates) {
+      const [cr,cc] = ck.split(',').map(Number);
+      for (const anchor of orient) {
+        const cells = orient.map(({r,c})=>({r:r+cr-anchor.r, c:c+cc-anchor.c}));
+        const key = cellsKey(cells);
+        if (tried.has(key)) continue;
+        tried.add(key);
+        if (isValidPlacementFast(cells) && touchesExisting(cells) && !wouldCreateHoleFast(cells, borderReach))
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
+function autoTile() {
+  if (!gameStarted) { startGame(); }
+  if (autoInterval) return;
+  document.getElementById('auto-btn').classList.add('active');
+  document.getElementById('stop-btn').style.display = '';
+  autoInterval = setInterval(() => {
+    const best = findBestAutoPlacement();
+    if (!best) {
+      stopAuto();
+      setMsg('Auto-tiling complete!');
+      return;
+    }
+    placeTile(best);
+  }, 80);
+}
+
+function stopAuto() {
+  if (autoInterval) { clearInterval(autoInterval); autoInterval = null; }
+  document.getElementById('auto-btn').classList.remove('active');
+  document.getElementById('stop-btn').style.display = 'none';
+}
+
+// ---- Init ----
+presetUtah();
+startGame();
+</script>
+</body>
+</html>
