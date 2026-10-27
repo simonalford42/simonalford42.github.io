@@ -6,9 +6,9 @@
 [[arxiv](https://arxiv.org/abs/2610.35617)] [[code](https://github.com/simonalford42/planet_eqs)]
 
 **OmniCode: A Benchmark for Evaluating Software Development Agents**<br>
-Atharv Sonwane, Eng-Shen Tu, Claas Beger, Wei-Chung Lu, Carter Larsen, Debjit Dhar, **Simon Alford**, Rachel Chen, Ronit Pattanayak, Tuan Anh Dang, Guohao Chen, Gloria Geng, Kevin Ellis, Saikat Dutta<br>
-*Preprint*, 2026
-[[arxiv](https://arxiv.org/abs/2602.02262)]
+Atharv Sonwane, Eng-Shen Tu, Wei-Chung Lu, Claas Beger, Carter Larsen, Debjit Dhar, **Simon Alford**, Rachel Chen, Ronit Pattanayak, Tuan Anh Dang, Guohao Chen, Gloria Geng, Kevin Ellis, Saikat Dutta<br>
+*Findings of ACL*, 2026
+[[pdf](https://aclanthology.org/2026.findings-acl.2020.pdf)] [[arxiv](https://arxiv.org/abs/2602.02262)]
 
 **Combining Induction and Transduction for Abstract Reasoning**<br>
 Wen-Ding Li, Keya Hu, Carter Larsen, Yuqing Wu, **Simon Alford**, Caleb Woo, Spencer M. Dunn, Hao Tang, Michelangelo Naim, Dat Nguyen, Wei-Long Zheng, Zenna Tavares, Yewen Pu, Kevin Ellis<br>
