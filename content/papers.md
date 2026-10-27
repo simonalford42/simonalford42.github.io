@@ -1,5 +1,10 @@
 ## Papers & Preprints
 
+**Distilling Neural Networks into Equations to Predict Planetary Instability**<br>
+**Simon Alford**, Edward Gu, Omar Costilla-Reyes, Dan Tamayo, Miles Cranmer, Kevin Ellis<br>
+*Preprint*, 2026
+[[arxiv](https://arxiv.org/abs/2610.35617)] [[code](https://github.com/simonalford42/planet_eqs)]
+
 **OmniCode: A Benchmark for Evaluating Software Development Agents**<br>
 Atharv Sonwane, Eng-Shen Tu, Claas Beger, Wei-Chung Lu, Carter Larsen, Debjit Dhar, **Simon Alford**, Rachel Chen, Ronit Pattanayak, Tuan Anh Dang, Guohao Chen, Gloria Geng, Kevin Ellis, Saikat Dutta<br>
 *Preprint*, 2026
