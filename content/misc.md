@@ -1,1 +1,1 @@
-As hobbies, I enjoy ultimate frisbee, wildflower hunting, biking, philosophy, cacti, surfing, textiles, and music.
+As hobbies, I enjoy ultimate frisbee, biking, philosophy, cacti, wildflowers, surfing, textiles, music, and economics.
